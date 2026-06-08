@@ -79,6 +79,7 @@ public:
     void modelListChanged() override { stateBroadcaster.sendChangeMessage(); }
 
 private:
+    static BusesProperties makeBusLayout();
     void updateHostInfoFromPlayHead();
 
     std::unique_ptr<juce::PropertiesFile> settings;

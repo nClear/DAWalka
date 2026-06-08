@@ -10,9 +10,21 @@ juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter()
 
 namespace dawalka {
 
+PluginProcessor::BusesProperties PluginProcessor::makeBusLayout()
+{
+    auto buses = BusesProperties();
+
+#if JucePlugin_Build_VST3
+    // Ableton rejects VST3 effects that declare no audio input bus. DAWalka
+    // still behaves as a generator, but the VST3 wrapper needs a valid input.
+    buses = buses.withInput ("Input", juce::AudioChannelSet::stereo(), true);
+#endif
+
+    return buses.withOutput ("Output", juce::AudioChannelSet::stereo(), true);
+}
+
 PluginProcessor::PluginProcessor()
-    : AudioProcessor (BusesProperties()
-                       .withOutput ("Output", juce::AudioChannelSet::stereo(), true)),
+    : AudioProcessor (makeBusLayout()),
       backend (modelManager)
 {
     // Sandbox-safe: use explicit ~/Library/Application Support path.
