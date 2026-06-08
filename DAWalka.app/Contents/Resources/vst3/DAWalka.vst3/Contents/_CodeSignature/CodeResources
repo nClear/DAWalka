@@ -4,6 +4,10 @@
 <dict>
 	<key>files</key>
 	<dict>
+		<key>Resources/moduleinfo.json</key>
+		<data>
+		a1AEvBb96QXG2uSNrqHMetH3+bc=
+		</data>
 		<key>Resources/python_backend/README.md</key>
 		<data>
 		zXhn7DIAez2mUDEC2SzcaVQbF+g=
@@ -95,6 +99,13 @@
 			</data>
 			<key>requirement</key>
 			<string>cdhash H"7752d330d210af3bd13db06db58083e509c0d84d"</string>
+		</dict>
+		<key>Resources/moduleinfo.json</key>
+		<dict>
+			<key>hash2</key>
+			<data>
+			K4FCjAJTwOeZ0i5ebuKj3AQJquKiWh5rl0x79snGBzg=
+			</data>
 		</dict>
 		<key>Resources/python_backend/README.md</key>
 		<dict>

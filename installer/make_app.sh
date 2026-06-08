@@ -3,7 +3,7 @@
 #  DAWalka — build DAWalka.app from the pre-built component
 # =============================================================================
 #
-#  This script packages the freshly-built C++ component and the Python
+#  This script packages the freshly-built C++ plug-ins and the Python
 #  backend into a self-contained DAWalka.app that the user can:
 #
 #     - double-click to install/uninstall via a Cocoa UI
@@ -24,10 +24,12 @@
 #     │       │   └── uninstall.sh        # the "Uninstall" button
 #     │       ├── component/
 #     │       │   └── DAWalka.component   # pre-built AUv2
+#     │       ├── vst3/
+#     │       │   └── DAWalka.vst3        # pre-built VST3
 #     │       └── python_backend/         # embedded by the C++ build
 #
 #  Requirements: build.sh has been run first (so build/AU/DAWalka.component
-#  exists) and clang is available (it's in Xcode Command Line Tools, which
+#  and build/VST3/DAWalka.vst3 exist) and clang is available (it's in Xcode Command Line Tools, which
 #  are required by build.sh anyway).
 #
 #  Usage:
@@ -60,6 +62,11 @@ if [[ ! -d "$PROJECT_ROOT/build/AU/DAWalka.component" ]]; then
     echo "       Run ./build.sh first to compile the C++ plugin." >&2
     exit 1
 fi
+if [[ ! -d "$PROJECT_ROOT/build/VST3/DAWalka.vst3" ]]; then
+    echo "ERROR: build/VST3/DAWalka.vst3 not found." >&2
+    echo "       Run ./build.sh first to compile the C++ plugin." >&2
+    exit 1
+fi
 
 if ! command -v clang >/dev/null 2>&1; then
     echo "ERROR: clang not found.  Install Xcode Command Line Tools:" >&2
@@ -88,6 +95,7 @@ echo "==> Building DAWalka.app"
 mkdir -p "$APP_BUNDLE/Contents/MacOS"
 mkdir -p "$APP_BUNDLE/Contents/Resources/Scripts"
 mkdir -p "$APP_BUNDLE/Contents/Resources/component"
+mkdir -p "$APP_BUNDLE/Contents/Resources/vst3"
 mkdir -p "$APP_BUNDLE/Contents/Resources/python_backend"
 
 # ─── 1. Compile the Cocoa UI ──────────────────────────────────────────────
@@ -112,10 +120,14 @@ cp "$PROJECT_ROOT/uninstall.sh" "$APP_BUNDLE/Contents/Resources/Scripts/uninstal
 chmod +x "$APP_BUNDLE/Contents/Resources/Scripts/"*.sh
 echo "    Scripts/install.sh  +  Scripts/uninstall.sh"
 
-# ─── 4. Pre-built component ────────────────────────────────────────────────
+# ─── 4. Pre-built plug-ins ─────────────────────────────────────────────────
 cp -R "$PROJECT_ROOT/build/AU/DAWalka.component" \
       "$APP_BUNDLE/Contents/Resources/component/"
 echo "    component/DAWalka.component  ($(du -sh "$APP_BUNDLE/Contents/Resources/component/DAWalka.component" | cut -f1))"
+
+cp -R "$PROJECT_ROOT/build/VST3/DAWalka.vst3" \
+      "$APP_BUNDLE/Contents/Resources/vst3/"
+echo "    vst3/DAWalka.vst3  ($(du -sh "$APP_BUNDLE/Contents/Resources/vst3/DAWalka.vst3" | cut -f1))"
 
 # ─── 5. Python backend (everything except vendor/ which is huge) ──────────
 # Use rsync if available so we can exclude vendor/ and __pycache__/;
@@ -181,11 +193,17 @@ if [[ -f "$PROJECT_ROOT/icon.png" ]] && \
     if iconutil -c icns "$ICONSET_DIR" \
                 -o "$APP_BUNDLE/Contents/Resources/AppIcon.icns" 2>/dev/null; then
         echo "    AppIcon.icns  ($(du -h "$APP_BUNDLE/Contents/Resources/AppIcon.icns" | cut -f1))"
+    elif [[ -f "$SCRIPT_DIR/AppIcon.icns" ]]; then
+        cp "$SCRIPT_DIR/AppIcon.icns" "$APP_BUNDLE/Contents/Resources/AppIcon.icns"
+        echo "    AppIcon.icns  (fallback, $(du -h "$APP_BUNDLE/Contents/Resources/AppIcon.icns" | cut -f1))"
     else
         echo "WARNING: iconutil failed; the .app will use the default icon." >&2
         rm -f "$APP_BUNDLE/Contents/Resources/AppIcon.icns"
     fi
     rm -rf "$(dirname "$ICONSET_DIR")"
+elif [[ -f "$SCRIPT_DIR/AppIcon.icns" ]]; then
+    cp "$SCRIPT_DIR/AppIcon.icns" "$APP_BUNDLE/Contents/Resources/AppIcon.icns"
+    echo "    AppIcon.icns  (fallback, $(du -h "$APP_BUNDLE/Contents/Resources/AppIcon.icns" | cut -f1))"
 else
     echo "    (icon.png missing or sips/iconutil unavailable — using default icon)"
 fi

@@ -14,16 +14,16 @@
 #    3. поставит MLX (на Apple Silicon), aiohttp, sentencepiece, и т.д.
 #    4. скачает модели Stable Audio 3 (Small + Medium) в
 #       ~/Library/Application Support/DAWalka/models/
-#    5. сконфигурирует и соберёт AUv2-плагин
-#    6. установит его в ~/Library/Audio/Plug-Ins/Components
-#    7. перерегистрирует Audio Units и проверит auval
+#    5. сконфигурирует и соберёт AUv2 + VST3 плагины
+#    6. установит их в ~/Library/Audio/Plug-Ins/Components и VST3
+#    7. перерегистрирует Audio Units, проверит auval и VST3 bundle
 #
 #  Никаких интерактивных вопросов.  Повторный запуск безопасен —
 #  уже сделанные шаги пропускаются (инкрементальная сборка).
 #
 #  Дополнительные флаги:
 #
-#      ./build.sh --no-install    # только собрать (без установки в AU)
+#      ./build.sh --no-install    # только собрать (без установки AU/VST3)
 #      ./build.sh --skip-models   # не качать модели (если уже скачаны)
 #      ./build.sh --rebuild       # снести build/ и собрать с нуля
 #      ./build.sh --verify        # только проверить текущую установку
@@ -53,6 +53,8 @@ VENDOR_DIR="$PYTHON_BACKEND/vendor"
 BUILD_DIR="$PROJECT_ROOT/build"
 USER_AU_DIR="$HOME/Library/Audio/Plug-Ins/Components"
 INSTALL_PATH="$USER_AU_DIR/DAWalka.component"
+USER_VST3_DIR="$HOME/Library/Audio/Plug-Ins/VST3"
+VST3_INSTALL_PATH="$USER_VST3_DIR/DAWalka.vst3"
 LOG_DIR="$HOME/Library/Application Support/DAWalka"
 MODELS_DIR="$LOG_DIR/models"
 # Min free disk required for the full install (models alone are ~6.7 GB,
@@ -113,6 +115,43 @@ run_quiet() {
     fi
     rm -f "$log"
     return 0
+}
+
+run_auval_dawalka_check() {
+    local timeout="${1:-20}"
+    local log pid elapsed rc
+    log="$(mktemp -t dawalka-auval.XXXXXX)"
+
+    if ! command -v auval >/dev/null 2>&1; then
+        rm -f "$log"
+        return 2
+    fi
+
+    auval -a >"$log" 2>/dev/null &
+    pid=$!
+    elapsed=0
+    while kill -0 "$pid" 2>/dev/null && [[ $elapsed -lt $timeout ]]; do
+        sleep 1
+        elapsed=$((elapsed + 1))
+    done
+
+    if kill -0 "$pid" 2>/dev/null; then
+        kill "$pid" 2>/dev/null || true
+        sleep 1
+        kill -9 "$pid" 2>/dev/null || true
+        rm -f "$log"
+        return 124
+    fi
+
+    wait "$pid"
+    rc=$?
+    if [[ $rc -eq 0 ]] && grep -qi "dawalka" "$log"; then
+        rm -f "$log"
+        return 0
+    fi
+
+    rm -f "$log"
+    return 1
 }
 
 # Check if a given python interpreter is >= 3.10.  Returns 0 (yes) or
@@ -204,9 +243,16 @@ if [[ "$DO_VERIFY" -eq 1 ]]; then
     errors=0
 
     if [[ -d "$INSTALL_PATH" ]]; then
-        ok "Plugin: $INSTALL_PATH"
+        ok "AU plugin: $INSTALL_PATH"
     else
-        warn "Plugin не найден: $INSTALL_PATH"
+        warn "AU plugin не найден: $INSTALL_PATH"
+        errors=$((errors + 1))
+    fi
+
+    if [[ -d "$VST3_INSTALL_PATH" ]]; then
+        ok "VST3 plugin: $VST3_INSTALL_PATH"
+    else
+        warn "VST3 plugin не найден: $VST3_INSTALL_PATH"
         errors=$((errors + 1))
     fi
 
@@ -277,7 +323,8 @@ banner
 hr
 printf "  ${DIM}Проект:${RESET}    %s\n" "$PROJECT_ROOT"
 printf "  ${DIM}Сборка:${RESET}    %s\n" "$BUILD_DIR"
-printf "  ${DIM}Установка:${RESET} %s\n" "$INSTALL_PATH"
+printf "  ${DIM}AU:${RESET}        %s\n" "$INSTALL_PATH"
+printf "  ${DIM}VST3:${RESET}      %s\n" "$VST3_INSTALL_PATH"
 printf "  ${DIM}Python:${RESET}    %s\n" "$VENV_DIR"
 hr
 echo
@@ -564,7 +611,7 @@ else
 fi
 
 # ─── 6. Build C++ plugin ───────────────────────────────────────────────────
-step "6/8  Конфигурирую и собираю AUv2 (может занять 5-15 минут в первый раз)"
+step "6/8  Конфигурирую и собираю AUv2 + VST3 (может занять 5-15 минут в первый раз)"
 
 NCPU="$(sysctl -n hw.ncpu 2>/dev/null || echo 4)"
 info "Потоков сборки: $NCPU"
@@ -615,6 +662,12 @@ if [[ ! -d "$AU_BUNDLE" ]]; then
 fi
 ok "AUv2: $AU_BUNDLE ($(du -sh "$AU_BUNDLE" 2>/dev/null | cut -f1 || echo ?))"
 
+VST3_BUNDLE="$BUILD_DIR/VST3/DAWalka.vst3"
+if [[ ! -d "$VST3_BUNDLE" ]]; then
+    fail "VST3 бандл не найден: $VST3_BUNDLE"
+fi
+ok "VST3: $VST3_BUNDLE ($(du -sh "$VST3_BUNDLE" 2>/dev/null | cut -f1 || echo ?))"
+
 # Safety net: if the CMake POST_BUILD step didn't copy python_backend for
 # any reason (older build, manual cmake run, etc.), copy it now.
 embed_python_backend() {
@@ -627,49 +680,96 @@ embed_python_backend() {
     cp -R "$PYTHON_BACKEND" "$target/Contents/Resources/python_backend"
 }
 
-embed_python_backend "$AU_BUNDLE"
-ok "python_backend встроен в bundle ($(du -sh "$AU_BUNDLE/Contents/Resources/python_backend" 2>/dev/null | cut -f1 || echo ?))"
+sign_plugin_bundle() {
+    local target="$1"
+    if [[ -d "$target" ]] && command -v codesign >/dev/null 2>&1; then
+        if codesign --force --deep --sign - "$target" >/dev/null 2>&1; then
+            ok "Ad-hoc подпись обновлена: $target"
+        else
+            warn "Не удалось обновить ad-hoc подпись: $target"
+        fi
+    fi
+}
 
-# ─── 7. Install to ~/Library/Audio/Plug-Ins/Components ─────────────────────
+embed_python_backend "$AU_BUNDLE"
+embed_python_backend "$VST3_BUNDLE"
+sign_plugin_bundle "$AU_BUNDLE"
+sign_plugin_bundle "$VST3_BUNDLE"
+ok "python_backend встроен в AU ($(du -sh "$AU_BUNDLE/Contents/Resources/python_backend" 2>/dev/null | cut -f1 || echo ?))"
+ok "python_backend встроен в VST3 ($(du -sh "$VST3_BUNDLE/Contents/Resources/python_backend" 2>/dev/null | cut -f1 || echo ?))"
+
+# ─── 7. Install to user Audio Plug-Ins folders ─────────────────────────────
 if [[ "$DO_INSTALL" -eq 1 ]]; then
-    step "7/8  Устанавливаю в системную папку Audio Units"
+    step "7/8  Устанавливаю AUv2 + VST3"
     mkdir -p "$USER_AU_DIR"
+    mkdir -p "$USER_VST3_DIR"
     rm -rf "$INSTALL_PATH"
+    rm -rf "$VST3_INSTALL_PATH"
     cp -R "$AU_BUNDLE" "$USER_AU_DIR/"
+    cp -R "$VST3_BUNDLE" "$USER_VST3_DIR/"
     # Belt-and-suspenders: re-embed python_backend in the installed copy
     # in case `cp -R` missed it or we want to make absolutely sure.
     embed_python_backend "$INSTALL_PATH"
-    ok "Установлено: $INSTALL_PATH"
+    embed_python_backend "$VST3_INSTALL_PATH"
+    sign_plugin_bundle "$INSTALL_PATH"
+    sign_plugin_bundle "$VST3_INSTALL_PATH"
+    ok "AU установлено: $INSTALL_PATH"
+    ok "VST3 установлено: $VST3_INSTALL_PATH"
 
     step "8/8  Перерегистрирую Audio Units"
     killall -9 audiounitservicecrasher 2>/dev/null || true
 
     if command -v auval >/dev/null 2>&1; then
-        if auval -a 2>/dev/null | grep -qi "dawalka"; then
+        if run_auval_dawalka_check 20; then
             ok "auval подтвердил регистрацию"
         else
-            warn "auval не нашёл DAWalka. Перезапустите Logic или выполните вручную:"
-            warn "    auval -a | grep -i dawalka"
+            case $? in
+                124)
+                    warn "auval завис дольше 20 секунд — пропускаю, чтобы installer не висел"
+                    ;;
+                *)
+                    warn "auval не нашёл DAWalka. Перезапустите Logic или выполните вручную:"
+                    warn "    auval -a | grep -i dawalka"
+                    ;;
+            esac
         fi
     else
         info "auval недоступен — пропускаю проверку"
     fi
+
+    if [[ -d "$VST3_INSTALL_PATH/Contents/Resources/python_backend" ]]; then
+        ok "VST3 bundle содержит python_backend"
+    else
+        warn "VST3 bundle установлен, но python_backend не найден"
+    fi
 else
     step "7/8  Пропускаю установку (--no-install)"
-    step "8/8  Перерегистрирую Audio Units (пропущено)"
-    warn "Установите плагин вручную:"
+    step "8/8  Перерегистрирую Audio Units / проверяю VST3 (пропущено)"
+    warn "Установите плагины вручную:"
     warn "    cp -R \"$AU_BUNDLE\" \"$USER_AU_DIR/\""
+    warn "    cp -R \"$VST3_BUNDLE\" \"$USER_VST3_DIR/\""
 fi
 
 # ─── 9. Final verification ─────────────────────────────────────────────────
 step "Финальная проверка"
 verify_errors=0
 
-# Plugin
+# Plugins
 if [[ -d "$INSTALL_PATH" && "$DO_INSTALL" -eq 1 ]]; then
-    ok "Plugin: $INSTALL_PATH"
+    ok "AU plugin: $INSTALL_PATH"
+elif [[ "$DO_INSTALL" -eq 0 ]]; then
+    ok "AU plugin собран: $AU_BUNDLE"
 else
-    warn "Plugin не установлен"
+    warn "AU plugin не установлен"
+    verify_errors=$((verify_errors + 1))
+fi
+
+if [[ -d "$VST3_INSTALL_PATH" && "$DO_INSTALL" -eq 1 ]]; then
+    ok "VST3 plugin: $VST3_INSTALL_PATH"
+elif [[ "$DO_INSTALL" -eq 0 ]]; then
+    ok "VST3 plugin собран: $VST3_BUNDLE"
+else
+    warn "VST3 plugin не установлен"
     verify_errors=$((verify_errors + 1))
 fi
 
@@ -705,11 +805,18 @@ fi
 
 # auval (only if we installed)
 if [[ "$DO_INSTALL" -eq 1 ]] && command -v auval >/dev/null 2>&1; then
-    if auval -a 2>/dev/null | grep -qi "dawalka"; then
+    if run_auval_dawalka_check 20; then
         ok "auval: DAWalka зарегистрирован"
     else
-        warn "auval: DAWalka не виден. Перезапустите Logic"
-        verify_errors=$((verify_errors + 1))
+        case $? in
+            124)
+                warn "auval: проверка зависла дольше 20 секунд — пропускаю"
+                ;;
+            *)
+                warn "auval: DAWalka не виден. Перезапустите Logic"
+                verify_errors=$((verify_errors + 1))
+                ;;
+        esac
     fi
 fi
 
@@ -724,15 +831,16 @@ else
 fi
 hr
 echo
-printf "  ${BOLD}Плагин:${RESET}        %s\n" "$INSTALL_PATH"
+printf "  ${BOLD}AU plugin:${RESET}     %s\n" "$INSTALL_PATH"
+printf "  ${BOLD}VST3 plugin:${RESET}   %s\n" "$VST3_INSTALL_PATH"
 printf "  ${BOLD}Python venv:${RESET}   %s\n" "$VENV_DIR"
 printf "  ${BOLD}Модели:${RESET}        %s (%s)\n" "$MODELS_DIR" "$(du -sh "$MODELS_DIR" 2>/dev/null | cut -f1 || echo ?)"
 printf "  ${BOLD}Логи:${RESET}          ~/Library/Application Support/DAWalka/backend.log"
 printf "\n\n"
 printf "  ${BOLD}Следующие шаги:${RESET}\n"
-printf "    1. Откройте ${BOLD}Logic Pro${RESET}\n"
-printf "    2. Создайте ${BOLD}Audio FX${RESET} дорожку (Generator slot)\n"
-printf "    3. Выберите ${BOLD}DAWalka${RESET}\n"
+printf "    1. Откройте ${BOLD}Logic Pro${RESET}, Reaper, Bitwig или другой AU/VST3 host\n"
+printf "    2. Создайте дорожку с инструментом/генератором\n"
+printf "    3. Выберите ${BOLD}DAWalka${RESET} из AU или VST3 списка\n"
 printf "    4. Наберите промпт и нажмите ${BOLD}GENERATE${RESET}\n"
 printf "       (модели и зависимости уже установлены — нажмите один раз)\n"
 printf "\n"

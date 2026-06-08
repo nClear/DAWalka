@@ -4,18 +4,19 @@
 # =============================================================================
 #
 #  This is the "Install" button handler.  It is intentionally NOT a wrapper
-#  around build.sh — the .app contains a pre-built DAWalka.component, so we
+#  around build.sh — the .app contains pre-built DAWalka AU/VST3 bundles, so we
 #  can skip the 5-15 min C++ compile and the cmake/git/brew dance that
 #  build.sh needs.  All we do here is:
 #
 #     1. Make sure the system has Python 3.10+ and Xcode CLT (for auval)
 #     2. Create the Python venv and install MLX + sentencepiece + aiohttp
 #     3. Download the Stable Audio 3 model weights (skipped if cached)
-#     4. Copy the bundled DAWalka.component into ~/Library/Audio/Plug-Ins/Components/
-#     5. Re-register with auval and report the result
+#     4. Copy the bundled DAWalka.component and DAWalka.vst3 into user plug-in folders
+#     5. Re-register AU with auval, verify the VST3 bundle, and report the result
 #
-#  The pre-built .component and python_backend live next to this script:
+#  The pre-built plug-ins and python_backend live next to this script:
 #     $RES/component/DAWalka.component
+#     $RES/vst3/DAWalka.vst3
 #     $RES/python_backend/
 #  where $RES is DAWalka.app/Contents/Resources/.
 #
@@ -29,6 +30,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 APP_RES_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"                    # .../Resources
 APP_ROOT="$(cd "$APP_RES_DIR/.." && pwd)"                        # .../DAWalka.app
 BUNDLED_COMPONENT="$APP_RES_DIR/component/DAWalka.component"
+BUNDLED_VST3="$APP_RES_DIR/vst3/DAWalka.vst3"
 BUNDLED_PYTHON_BACKEND="$APP_RES_DIR/python_backend"
 
 # Per-machine install state (shared with the developer's build.sh):
@@ -38,6 +40,8 @@ MODELS_DIR="$LOG_DIR/models"
 VENDOR_DIR="$LOG_DIR/python_backend/vendor"
 USER_AU_DIR="$HOME/Library/Audio/Plug-Ins/Components"
 INSTALL_PATH="$USER_AU_DIR/DAWalka.component"
+USER_VST3_DIR="$HOME/Library/Audio/Plug-Ins/VST3"
+VST3_INSTALL_PATH="$USER_VST3_DIR/DAWalka.vst3"
 
 # Pretty output
 if [[ -t 1 ]]; then
@@ -93,6 +97,43 @@ run_quiet() {
     fi
     rm -f "$log"
     return 0
+}
+
+run_auval_dawalka_check() {
+    local timeout="${1:-20}"
+    local log pid elapsed rc
+    log="$(mktemp -t dawalka-auval.XXXXXX)"
+
+    if ! command -v auval >/dev/null 2>&1; then
+        rm -f "$log"
+        return 2
+    fi
+
+    auval -a >"$log" 2>/dev/null &
+    pid=$!
+    elapsed=0
+    while kill -0 "$pid" 2>/dev/null && [[ $elapsed -lt $timeout ]]; do
+        sleep 1
+        elapsed=$((elapsed + 1))
+    done
+
+    if kill -0 "$pid" 2>/dev/null; then
+        kill "$pid" 2>/dev/null || true
+        sleep 1
+        kill -9 "$pid" 2>/dev/null || true
+        rm -f "$log"
+        return 124
+    fi
+
+    wait "$pid"
+    rc=$?
+    if [[ $rc -eq 0 ]] && grep -qi "dawalka" "$log"; then
+        rm -f "$log"
+        return 0
+    fi
+
+    rm -f "$log"
+    return 1
 }
 
 # Check if a given python interpreter is >= 3.10.  Returns 0 (yes) or 1 (no).
@@ -185,6 +226,13 @@ find_python_310() {
 # ─── 0. Sanity check the .app bundle itself ────────────────────────────────
 if [[ ! -d "$BUNDLED_COMPONENT" ]]; then
     fail "Pre-built component not found at: $BUNDLED_COMPONENT
+
+This usually means the .app was created without first running build.sh
+or the install scripts in installer/ are missing.  Re-create the .app
+with installer/make_app.sh."
+fi
+if [[ ! -d "$BUNDLED_VST3" ]]; then
+    fail "Pre-built VST3 not found at: $BUNDLED_VST3
 
 This usually means the .app was created without first running build.sh
 or the install scripts in installer/ are missing.  Re-create the .app
@@ -412,9 +460,10 @@ else
     ok "vendor/sa3_mlx already in place"
 fi
 
-# ─── 5. Install the pre-built component ────────────────────────────────────
-step "5/5  Installing Audio Unit plugin"
+# ─── 5. Install the pre-built plug-ins ─────────────────────────────────────
+step "5/5  Installing AU and VST3 plug-ins"
 mkdir -p "$USER_AU_DIR"
+mkdir -p "$USER_VST3_DIR"
 
 # Stop any running backend so the .component isn't locked
 pkill -9 -f "DAWalka.*server.py" 2>/dev/null && ok "Backend stopped" || info "Backend not running"
@@ -427,22 +476,48 @@ sleep 1
 rm -rf "$HOME/Applications/DAWalka Launcher.app" 2>/dev/null || true
 
 rm -rf "$INSTALL_PATH"
+rm -rf "$VST3_INSTALL_PATH"
 if ! cp -R "$BUNDLED_COMPONENT" "$USER_AU_DIR/"; then
-    fail "Failed to copy plugin to $USER_AU_DIR"
+    fail "Failed to copy AU plugin to $USER_AU_DIR"
 fi
-ok "Plugin installed: $INSTALL_PATH"
+if ! cp -R "$BUNDLED_VST3" "$USER_VST3_DIR/"; then
+    fail "Failed to copy VST3 plugin to $USER_VST3_DIR"
+fi
+if command -v codesign >/dev/null 2>&1; then
+    codesign --force --deep --sign - "$INSTALL_PATH" >/dev/null 2>&1 \
+        && ok "AU ad-hoc signature refreshed" \
+        || warn "Could not refresh AU ad-hoc signature"
+    codesign --force --deep --sign - "$VST3_INSTALL_PATH" >/dev/null 2>&1 \
+        && ok "VST3 ad-hoc signature refreshed" \
+        || warn "Could not refresh VST3 ad-hoc signature"
+fi
+ok "AU plugin installed: $INSTALL_PATH"
+ok "VST3 plugin installed: $VST3_INSTALL_PATH"
 
 # Re-register Audio Units
 killall -9 audiounitservicecrasher 2>/dev/null || true
 if command -v auval >/dev/null 2>&1; then
-    if auval -a 2>/dev/null | grep -qi "dawalka"; then
+    if run_auval_dawalka_check 20; then
         ok "auval confirmed registration"
     else
-        warn "auval did not find DAWalka. Restart Logic, or run:"
-        warn "    auval -a | grep -i dawalka"
+        case $? in
+            124)
+                warn "auval took longer than 20 seconds - skipping so the installer can finish"
+                ;;
+            *)
+                warn "auval did not find DAWalka. Restart Logic, or run:"
+                warn "    auval -a | grep -i dawalka"
+                ;;
+        esac
     fi
 else
     info "auval unavailable - skipping"
+fi
+
+if [[ -d "$VST3_INSTALL_PATH/Contents/Resources/python_backend" ]]; then
+    ok "VST3 bundle contains python_backend"
+else
+    warn "VST3 bundle installed, but python_backend is missing"
 fi
 
 # ─── Summary ───────────────────────────────────────────────────────────────
@@ -451,14 +526,15 @@ echo
 printf "  ${GREEN}${BOLD}\xe2\x9c\x93 DAWalka is ready to use!${RESET}\n"
 hr
 echo
-printf "  ${BOLD}Plugin:${RESET}      %s\n" "$INSTALL_PATH"
+printf "  ${BOLD}AU plugin:${RESET}   %s\n" "$INSTALL_PATH"
+printf "  ${BOLD}VST3 plugin:${RESET} %s\n" "$VST3_INSTALL_PATH"
 printf "  ${BOLD}Python venv:${RESET} %s\n" "$VENV_DIR"
 printf "  ${BOLD}Models:${RESET}      %s (%s)\n" "$MODELS_DIR" "$(du -sh "$MODELS_DIR" 2>/dev/null | cut -f1 || echo ?)"
 echo
 printf "  ${BOLD}Next steps:${RESET}\n"
-printf "    1. Open ${BOLD}Logic${RESET}\n"
-printf "    2. Create a ${BOLD}Software Instrument${RESET} track\n"
-printf "    3. Pick ${BOLD}DAWalka${RESET} in the AU Instrument slot\n"
+printf "    1. Open ${BOLD}Logic, Reaper, Bitwig, Ableton, or another AU/VST3 host${RESET}\n"
+printf "    2. Create an instrument/generator track\n"
+printf "    3. Pick ${BOLD}DAWalka${RESET} from the AU or VST3 list\n"
 printf "    4. Type a prompt and press ${BOLD}GENERATE${RESET}\n"
 echo
 hr

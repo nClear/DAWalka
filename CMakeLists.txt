@@ -81,7 +81,7 @@ juce_add_plugin(DAWalka
     # NOT sandbox-safe. Logic Pro 11 will SIGSYS the plugin if it claims to be
     # sandbox-safe and then tries to fork() / network.
     AU_SANDBOX_SAFE            FALSE
-    FORMATS                    AU
+    FORMATS                    AU VST3
     PRODUCT_NAME               "DAWalka"
     BUNDLE_ID                  "com.dawalka.audio"
     PLUGIN_MANUFACTURER_CODE   "DWLK"
@@ -99,7 +99,7 @@ juce_add_plugin(DAWalka
     SUPPORTS_CLAP              FALSE
     SUPPORTS_AU                TRUE
     SUPPORTS_STANDALONE        TRUE
-    SUPPORTS_VST3              FALSE
+    SUPPORTS_VST3              TRUE
     SUPPORTS_LV2               FALSE
     SUPPORTS_AAX               FALSE
     SUPPORTS_ARA               FALSE)
@@ -125,6 +125,7 @@ target_compile_options(DAWalka PRIVATE
 # pick it up. Setting it explicitly on both targets guarantees the standard.
 target_compile_features(DAWalka    PRIVATE cxx_std_17 cxx_std_20)
 target_compile_features(DAWalka_AU PRIVATE cxx_std_17 cxx_std_20)
+target_compile_features(DAWalka_VST3 PRIVATE cxx_std_17 cxx_std_20)
 
 juce_add_binary_data(DAWalkaAssets
     SOURCES
@@ -165,31 +166,37 @@ target_sources(DAWalka PRIVATE
     Source/DragnDropSource.cpp
     Source/ClipboardHelper.mm)
 
-# ─── Embed Python backend into the .component bundle ─────────────────────
-# JUCE wraps the DAWalka executable into a `.component` bundle and (because
-# we set AU_COPY_DIR="${CMAKE_BINARY_DIR}/AU") copies it there.  We add a
-# POST_BUILD step to the AU plugin target that runs *after* JUCE's own copy
-# step and embeds the python_backend directory into Contents/Resources/.
+# ─── Embed Python backend into plugin bundles ────────────────────────────
+# JUCE wraps the DAWalka executable into plugin bundles and copies them to
+# the configured copy dirs.  We add POST_BUILD steps to the format targets
+# that run *after* JUCE's own copy step and embed the python_backend directory
+# into Contents/Resources/.
 # We use a hard-coded path here because $<TARGET_BUNDLE_CONTENT_DIR:...>
 # is rejected by CMake for non-bundle targets (and the DAWalka target is the
-# underlying Mach-O executable, not the .component bundle itself).
+# underlying Mach-O executable, not the plugin bundle itself).
 # We explicitly skip the per-machine venv and __pycache__ folders so the
 # bundle stays small (≈ 1 MB) — the venv is rebuilt at install time
 # by the DAWalka Launcher.
-add_custom_command(TARGET DAWalka_AU POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E make_directory
-        "${CMAKE_BINARY_DIR}/AU/DAWalka.component/Contents/Resources"
-    COMMAND sh -c
-        "rsync -a --exclude='venv' --exclude='__pycache__' --exclude='*.pyc' \
-                --exclude='vendor/*/.git' --exclude='vendor/*/build' \
-                '${CMAKE_SOURCE_DIR}/python_backend/' \
-                '${CMAKE_BINARY_DIR}/AU/DAWalka.component/Contents/Resources/python_backend/'"
-    COMMAND sh -c
-        "rm -rf '${CMAKE_BINARY_DIR}/AU/DAWalka.component/Contents/MacOS/DAWalka Launcher.app' \
-          && cp -R '${CMAKE_SOURCE_DIR}/launcher/DAWalka Launcher.app' \
-                 '${CMAKE_BINARY_DIR}/AU/DAWalka.component/Contents/MacOS/'"
-    COMMENT "Embedding Python backend into AU component (skipping venv)"
-    VERBATIM)
+function(dawalka_embed_runtime target_name bundle_dir)
+    add_custom_command(TARGET ${target_name} POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E make_directory
+            "${bundle_dir}/Contents/Resources"
+        COMMAND sh -c
+            "rsync -a --exclude='venv' --exclude='__pycache__' --exclude='*.pyc' \
+                    --exclude='vendor/*/.git' --exclude='vendor/*/build' \
+                    '${CMAKE_SOURCE_DIR}/python_backend/' \
+                    '${bundle_dir}/Contents/Resources/python_backend/'"
+        COMMAND sh -c
+            "rm -rf '${bundle_dir}/Contents/MacOS/DAWalka Launcher.app' \
+              && cp -R '${CMAKE_SOURCE_DIR}/launcher/DAWalka Launcher.app' \
+                     '${bundle_dir}/Contents/MacOS/'"
+        COMMAND /usr/bin/codesign --force --deep --sign - "${bundle_dir}"
+        COMMENT "Embedding Python backend into ${target_name} bundle (skipping venv)"
+        VERBATIM)
+endfunction()
+
+dawalka_embed_runtime(DAWalka_AU "${CMAKE_BINARY_DIR}/AU/DAWalka.component")
+dawalka_embed_runtime(DAWalka_VST3 "${CMAKE_BINARY_DIR}/VST3/DAWalka.vst3")
 
 install(TARGETS DAWalka
     BUNDLE  DESTINATION "Library/Audio/Plug-Ins/Components"

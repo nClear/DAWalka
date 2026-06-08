@@ -182,7 +182,7 @@
 {
     NSAlert *confirm = [[NSAlert alloc] init];
     confirm.messageText = @"Uninstall DAWalka?";
-    confirm.informativeText = @"This removes the Audio Unit plugin, the Python venv, and (optionally) the downloaded models.\n\nYour generated audio files are kept by default.";
+    confirm.informativeText = @"This removes the AU and VST3 plugins, the Python venv, and (optionally) the downloaded models.\n\nYour generated audio files are kept by default.";
     [confirm addButtonWithTitle:@"Uninstall\u2026"];
     [confirm addButtonWithTitle:@"Cancel"];
     if ([confirm runModal] == NSAlertSecondButtonReturn) return;
@@ -216,12 +216,6 @@
         [[NSWorkspace sharedWorkspace] openURL:
             [NSURL URLWithString:@"https://github.com/pcixmix/DAWalka"]];  // fallback
     }
-}
-
-- (void)openGithubLink:(id)sender
-{
-    [[NSWorkspace sharedWorkspace]
-        openURL:[NSURL URLWithString:@"https://github.com/pcixmix/DAWalka"]];
 }
 
 // NSTextViewDelegate — fires when the user clicks on a link in our
@@ -283,7 +277,7 @@
 
     NSTextField *subtitle = [[NSTextField alloc]
         initWithFrame:NSMakeRect(20, 378, 540, 18)];
-    subtitle.stringValue = @"Install or remove the Audio Unit plugin for Logic.";
+    subtitle.stringValue = @"Install or remove the AU and VST3 plugins.";
     subtitle.textColor = [NSColor secondaryLabelColor];
     subtitle.font = [NSFont systemFontOfSize:11.5];
     subtitle.bezeled = NO;
@@ -292,8 +286,8 @@
     subtitle.selectable = NO;
     [content addSubview:subtitle];
 
-    // GitHub link — single source for the latest version and a way
-    // to support the author.  We use an NSTextView (not
+    // GitHub links — upstream plus this fork's VST3 build/support page.
+    // We use NSTextView (not
     // NSTextField) with NSLinkAttributeName because NSTextView's
     // text storage actually fires the delegate's
     // textView:clickedOnLink:atIndex: when the user clicks a
@@ -329,46 +323,22 @@
     githubLink.textContainer.widthTracksTextView = YES;
     githubLink.delegate = self;
 
-    // Build the styled string in two ranges: the URL gets the link
-    // attributes, the descriptive tail is plain secondary text.
+    NSMutableParagraphStyle *para = [[NSMutableParagraphStyle alloc] init];
+    para.alignment = NSTextAlignmentLeft;
+
+    // Build the upstream link.
     NSString *ghURLText = @"github.com/pcixmix/DAWalka";
-    NSString *ghTail    = @"  \u2014  latest version & support the author";
+    NSString *ghTail    = @"  \u2014  original AU version & support the author";
     NSString *ghText    = [ghURLText stringByAppendingString:ghTail];
     NSMutableAttributedString *ghAttr =
         [[NSMutableAttributedString alloc] initWithString:ghText];
     NSRange urlRange = NSMakeRange(0, ghURLText.length);
     NSRange tailRange = NSMakeRange(ghURLText.length, ghTail.length);
-
-    // URL part — link colour, underlined, system font
-    [ghAttr addAttribute:NSFontAttributeName
-                   value:[NSFont systemFontOfSize:11.5]
-                   range:urlRange];
-    [ghAttr addAttribute:NSForegroundColorAttributeName
-                   value:[NSColor linkColor]
-                   range:urlRange];
-    [ghAttr addAttribute:NSUnderlineStyleAttributeName
-                   value:@(NSUnderlineStyleSingle)
-                   range:urlRange];
-    [ghAttr addAttribute:NSLinkAttributeName
-                   value:@"https://github.com/pcixmix/DAWalka"
-                   range:urlRange];
-
-    // Descriptive tail — same font, soft grey, no underline.
-    // No NSLinkAttributeName here, so this text isn't clickable
-    // and the hand-cursor only appears over the URL.
-    [ghAttr addAttribute:NSFontAttributeName
-                   value:[NSFont systemFontOfSize:11.5]
-                   range:tailRange];
-    [ghAttr addAttribute:NSForegroundColorAttributeName
-                   value:[NSColor secondaryLabelColor]
-                   range:tailRange];
-
-    // Left-align to match the title and subtitle above (both
-    // use the default NSTextField left-alignment at x=20 with
-    // no paragraph style, so the whole header reads as a tidy
-    // left-aligned column).
-    NSMutableParagraphStyle *para = [[NSMutableParagraphStyle alloc] init];
-    para.alignment = NSLeftTextAlignment;
+    [ghAttr addAttribute:NSFontAttributeName value:[NSFont systemFontOfSize:11.5] range:NSMakeRange(0, ghText.length)];
+    [ghAttr addAttribute:NSForegroundColorAttributeName value:[NSColor linkColor] range:urlRange];
+    [ghAttr addAttribute:NSUnderlineStyleAttributeName value:@(NSUnderlineStyleSingle) range:urlRange];
+    [ghAttr addAttribute:NSLinkAttributeName value:@"https://github.com/pcixmix/DAWalka" range:urlRange];
+    [ghAttr addAttribute:NSForegroundColorAttributeName value:[NSColor secondaryLabelColor] range:tailRange];
     [ghAttr addAttribute:NSParagraphStyleAttributeName
                    value:para
                    range:NSMakeRange(0, ghText.length)];
@@ -376,9 +346,47 @@
     githubLink.textStorage.attributedString = ghAttr;
     [content addSubview:githubLink];
 
+    NSTextView *forkLink = [[NSTextView alloc]
+        initWithFrame:NSMakeRect(20, 322, 540, 24)];
+    forkLink.editable = NO;
+    forkLink.selectable = YES;
+    forkLink.drawsBackground = NO;
+    forkLink.textContainerInset = NSMakeSize(0, 5);
+    forkLink.textContainer.lineFragmentPadding = 0;
+    forkLink.horizontallyResizable = NO;
+    forkLink.verticallyResizable = NO;
+    forkLink.textContainer.widthTracksTextView = YES;
+    forkLink.delegate = self;
+
+    NSString *forkURLText = @"github.com/nClear/DAWalka";
+    NSString *forkTail    = @"  \u2014  VST3 fork & latest build";
+    NSString *pluginURLText = @"plugins.nclear.pro";
+    NSString *pluginPrefix = @"  \u00B7  ";
+    NSString *forkText = [[[forkURLText stringByAppendingString:forkTail]
+                           stringByAppendingString:pluginPrefix]
+                           stringByAppendingString:pluginURLText];
+    NSMutableAttributedString *forkAttr =
+        [[NSMutableAttributedString alloc] initWithString:forkText];
+    NSRange forkURLRange = NSMakeRange(0, forkURLText.length);
+    NSRange forkTailRange = NSMakeRange(forkURLText.length, forkTail.length + pluginPrefix.length);
+    NSRange pluginURLRange = NSMakeRange(forkURLText.length + forkTail.length + pluginPrefix.length,
+                                         pluginURLText.length);
+    [forkAttr addAttribute:NSFontAttributeName value:[NSFont systemFontOfSize:11.5] range:NSMakeRange(0, forkText.length)];
+    [forkAttr addAttribute:NSForegroundColorAttributeName value:[NSColor linkColor] range:forkURLRange];
+    [forkAttr addAttribute:NSUnderlineStyleAttributeName value:@(NSUnderlineStyleSingle) range:forkURLRange];
+    [forkAttr addAttribute:NSLinkAttributeName value:@"https://github.com/nClear/DAWalka" range:forkURLRange];
+    [forkAttr addAttribute:NSForegroundColorAttributeName value:[NSColor secondaryLabelColor] range:forkTailRange];
+    [forkAttr addAttribute:NSForegroundColorAttributeName value:[NSColor linkColor] range:pluginURLRange];
+    [forkAttr addAttribute:NSUnderlineStyleAttributeName value:@(NSUnderlineStyleSingle) range:pluginURLRange];
+    [forkAttr addAttribute:NSLinkAttributeName value:@"https://plugins.nclear.pro" range:pluginURLRange];
+    [forkAttr addAttribute:NSParagraphStyleAttributeName value:para range:NSMakeRange(0, forkText.length)];
+
+    forkLink.textStorage.attributedString = forkAttr;
+    [content addSubview:forkLink];
+
     // Buttons ----------------------------------------------------------------
     self.installButton = [[NSButton alloc]
-        initWithFrame:NSMakeRect(20, 304, 170, 36)];
+        initWithFrame:NSMakeRect(20, 282, 170, 36)];
     self.installButton.title = @"Install";
     self.installButton.bezelStyle = NSBezelStyleRounded;
     self.installButton.target = self;
@@ -387,7 +395,7 @@
     [content addSubview:self.installButton];
 
     self.uninstallButton = [[NSButton alloc]
-        initWithFrame:NSMakeRect(200, 304, 170, 36)];
+        initWithFrame:NSMakeRect(200, 282, 170, 36)];
     self.uninstallButton.title = @"Uninstall";
     self.uninstallButton.bezelStyle = NSBezelStyleRounded;
     self.uninstallButton.target = self;
@@ -395,7 +403,7 @@
     [content addSubview:self.uninstallButton];
 
     self.revealButton = [[NSButton alloc]
-        initWithFrame:NSMakeRect(380, 304, 80, 36)];
+        initWithFrame:NSMakeRect(380, 282, 80, 36)];
     self.revealButton.title = @"Reveal";
     self.revealButton.bezelStyle = NSBezelStyleRounded;
     self.revealButton.target = self;
@@ -404,7 +412,7 @@
     [content addSubview:self.revealButton];
 
     NSButton *docsButton = [[NSButton alloc]
-        initWithFrame:NSMakeRect(465, 304, 95, 36)];
+        initWithFrame:NSMakeRect(465, 282, 95, 36)];
     docsButton.title = @"README";
     docsButton.bezelStyle = NSBezelStyleRounded;
     docsButton.target = self;
@@ -413,7 +421,7 @@
 
     // Output view ------------------------------------------------------------
     NSScrollView *scroll = [[NSScrollView alloc]
-        initWithFrame:NSMakeRect(20, 20, 540, 270)];
+        initWithFrame:NSMakeRect(20, 20, 540, 258)];
     scroll.hasVerticalScroller = YES;
     scroll.borderType = NSBezelBorder;
     scroll.autohidesScrollers = NO;
@@ -451,7 +459,7 @@
     [self appendLine:@"  1. Creates a Python virtual environment\n"];
     [self appendLine:@"  2. Installs MLX, sentencepiece, aiohttp, ...\n"];
     [self appendLine:@"  3. Downloads the Stable Audio 3 model weights (~6.7 GB)\n"];
-    [self appendLine:@"  4. Copies the pre-built Audio Unit to ~/Library/Audio/Plug-Ins/Components/\n"];
+    [self appendLine:@"  4. Copies the pre-built AU and VST3 plugins to your user plug-in folders\n"];
     [self appendLine:@"  5. Verifies with auval\n\n"];
     [self appendLine:@"All output is shown below in real time.  If something fails,\n"];
     [self appendLine:@"you can copy the error from here for a bug report.\n\n"];

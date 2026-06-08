@@ -77,6 +77,31 @@ def load_args():
             pass
 
 
+def find_plugin_bundle(argv1):
+    """Return the DAWalka plugin bundle that contains this launcher.
+
+    AU and VST3 bundles both use Contents/Resources/python_backend, but
+    sandbox-friendly NSWorkspace launches do not reliably pass argv.  Walking
+    up from this script keeps VST3 independent from an installed AU copy.
+    """
+    if argv1:
+        candidate = Path(argv1)
+        if (candidate / "Contents" / "Resources" / "python_backend").is_dir():
+            return candidate
+
+    here = Path(__file__).resolve()
+    for parent in here.parents:
+        if parent.suffix in {".component", ".vst3"}:
+            if (parent / "Contents" / "Resources" / "python_backend").is_dir():
+                return parent
+
+    vst3 = Path.home() / "Library" / "Audio" / "Plug-Ins" / "VST3" / "DAWalka.vst3"
+    if (vst3 / "Contents" / "Resources" / "python_backend").is_dir():
+        return vst3
+
+    return Path.home() / "Library" / "Audio" / "Plug-Ins" / "Components" / "DAWalka.component"
+
+
 def main():
     load_args()
     LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
@@ -84,11 +109,8 @@ def main():
     MODELS_DIR.mkdir(parents=True, exist_ok=True)
 
     argv1 = sys.argv[1] if len(sys.argv) > 1 else ""
-    if argv1 and (Path(argv1) / "Contents" / "Resources" / "python_backend").is_dir():
-        component = Path(argv1)
-    else:
-        component = Path.home() / "Library" / "Audio" / "Plug-Ins" / "Components" / "DAWalka.component"
-    py_backend = component / "Contents" / "Resources" / "python_backend"
+    plugin_bundle = find_plugin_bundle(argv1)
+    py_backend = plugin_bundle / "Contents" / "Resources" / "python_backend"
     if not py_backend.is_dir():
         log(f"ERROR: python_backend not found at {py_backend}")
         sys.exit(1)

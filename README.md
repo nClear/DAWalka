@@ -2,9 +2,12 @@
 
 ![DAWalka Screenshot](shot.png)
 
-**AI Audio Generator for Logic** — an Audio Unit plugin that generates
+**AI Audio Generator for DAWs** — an AU/VST3 plugin that generates
 music loops, instrument phrases, textures, and sound effects with
 **Stable Audio 3**, fully on-device, inside your DAW project.
+
+This fork adds experimental multi-format support while preserving the
+original Logic/AU workflow.
 
 Two modes:
 
@@ -19,11 +22,13 @@ Key features:
 * Hardware-accelerated on Apple Silicon (MLX → Metal).
 * Generation runs in a separate process — your DAW never blocks.
 * Project BPM and timeline duration are picked up automatically.
-* Drag-and-drop the result straight onto a Logic track.
+* Drag-and-drop the result straight onto a host track.
 
 Latest version and source:
 
-**https://github.com/pcixmix/DAWalka**
+Original project: **https://github.com/pcixmix/DAWalka**
+
+This fork: **https://github.com/nClear/DAWalka**
 
 ---
 
@@ -50,8 +55,8 @@ Double-click `DAWalka.app` and click **✕ Install**. The installer will:
    huggingface_hub.
 3. Download the Stable Audio 3 model weights (~6.7 GB total) into a
    per-user cache.
-4. Copy the pre-built Audio Unit into your user Components folder.
-5. Verify the plugin with `auval`.
+4. Copy the pre-built AU and VST3 plugins into your user plug-in folders.
+5. Verify the AU with `auval` and check that the VST3 bundle is complete.
 
 The installer is safe to re-run — every step is a no-op if its
 artefact is already in place.
@@ -62,13 +67,14 @@ artefact is already in place.
 
 | What | Path |
 |---|---|
-| Audio Unit plugin | `~ /Library/Audio/Plug-Ins/Components/DAWalka.component` |
-| Python venv | `~ /Library/Application Support/DAWalka/venv` |
-| Model weights | `~ /Library/Application Support/DAWalka/models` |
-| Settings | `~ /Library/Application Support/DAWalka.settings` |
+| Audio Unit plugin | `~/Library/Audio/Plug-Ins/Components/DAWalka.component` |
+| VST3 plugin | `~/Library/Audio/Plug-Ins/VST3/DAWalka.vst3` |
+| Python venv | `~/Library/Application Support/DAWalka/venv` |
+| Model weights | `~/Library/Application Support/DAWalka/models` |
+| Settings | `~/Library/Application Support/DAWalka.settings` |
 | Generated audio (T2A) | `~/Documents/DAWalka/T2A` |
 | Generated audio (A2A) | `~/Documents/DAWalka/A2A` |
-| Backend log | `~ /Library/Application Support/DAWalka/backend.log` |
+| Backend log | `~/Library/Application Support/DAWalka/backend.log` |
 
 The T2A and A2A folders are created automatically. You can also drop
 your own audio into `~/Documents/DAWalka/T2A/` and pick it up as A2A
@@ -94,7 +100,7 @@ A2A request.
 ## Uninstall
 
 Open `DAWalka.app` and click **✕ Uninstall**. The uninstaller
-removes the Audio Unit, the Python venv, the model weights, and the
+removes the AU/VST3 plugins, the Python venv, the model weights, and the
 plugin's settings. Your generated audio in `~/Documents/DAWalka/`
 is always kept — to delete it, remove the folder manually.
 
@@ -114,16 +120,17 @@ plugin) uses:
   optional `HF_TOKEN` env var raises the daily rate limit).
 * **stabilityai/stable-audio-3-optimized** — open-source MLX weights.
 
-The plugin UI itself is built with **JUCE 8** (C++20, AUv2, Metal).
+The plugin UI itself is built with **JUCE 8** (C++20, AUv2, VST3, Metal).
 
 ---
 
 ## Using the plugin
 
-1. Open **Logic** and create a Software Instrument track.
-2. Pick `DAWalka` in the AU Instrument slot.
-3. Choose a model, type a prompt, press **Generate**.
-4. Drag the resulting waveform straight onto a Logic track.
+1. Open **Logic**, Reaper, Bitwig, Ableton, or another AU/VST3 host.
+2. Create an instrument/generator track.
+3. Pick `DAWalka` from the AU or VST3 plug-in list.
+4. Choose a model, type a prompt, press **Generate**.
+5. Drag the resulting waveform straight onto a host track.
 
 In **A2A** mode the same UI gains an INPUT browser (left panel) and
 an OUTPUT history (right panel). Drop a WAV / AIFF / FLAC / OGG file
