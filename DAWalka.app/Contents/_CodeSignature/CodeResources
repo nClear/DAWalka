@@ -26,7 +26,7 @@
 		</data>
 		<key>Resources/component/DAWalka.component/Contents/MacOS/DAWalka</key>
 		<data>
-		FOdUGc4t9gxyTEAT5DKNtPOyUbI=
+		P99GHkOquxDiNHAu1zMZfEXPS8s=
 		</data>
 		<key>Resources/component/DAWalka.component/Contents/MacOS/DAWalka Launcher.app/Contents/Info.plist</key>
 		<data>
@@ -34,11 +34,11 @@
 		</data>
 		<key>Resources/component/DAWalka.component/Contents/MacOS/DAWalka Launcher.app/Contents/MacOS/launcher</key>
 		<data>
-		s8Gk53cFkvW8W2PBvcHdS1ZpBoU=
+		3TiCNeoEUbbBb+K2NTaB6Sh8L0U=
 		</data>
 		<key>Resources/component/DAWalka.component/Contents/MacOS/DAWalka Launcher.app/Contents/_CodeSignature/CodeDirectory</key>
 		<data>
-		Q4V0gt7/avJg6G3YFWaUM3WW2jo=
+		SoKEYeLK2wAsFFOP+5TKqasSJz0=
 		</data>
 		<key>Resources/component/DAWalka.component/Contents/MacOS/DAWalka Launcher.app/Contents/_CodeSignature/CodeRequirements</key>
 		<data>
@@ -138,7 +138,7 @@
 		</data>
 		<key>Resources/component/DAWalka.component/Contents/_CodeSignature/CodeResources</key>
 		<data>
-		8cwG8R3TtL04CikKX8ed7cnyJxg=
+		BIC3oAU0sHOxCwPCwgcPjwL3C8M=
 		</data>
 		<key>Resources/python_backend/README.md</key>
 		<data>
@@ -166,7 +166,7 @@
 		</data>
 		<key>Resources/vst3/DAWalka.vst3/Contents/MacOS/DAWalka</key>
 		<data>
-		MrNGpMBUKmwi5LsyU4hUFeL2F9A=
+		S29HR7Kmvx167lN6uZaM2tbkMKU=
 		</data>
 		<key>Resources/vst3/DAWalka.vst3/Contents/MacOS/DAWalka Launcher.app/Contents/Info.plist</key>
 		<data>
@@ -174,11 +174,11 @@
 		</data>
 		<key>Resources/vst3/DAWalka.vst3/Contents/MacOS/DAWalka Launcher.app/Contents/MacOS/launcher</key>
 		<data>
-		s8Gk53cFkvW8W2PBvcHdS1ZpBoU=
+		3TiCNeoEUbbBb+K2NTaB6Sh8L0U=
 		</data>
 		<key>Resources/vst3/DAWalka.vst3/Contents/MacOS/DAWalka Launcher.app/Contents/_CodeSignature/CodeDirectory</key>
 		<data>
-		Q4V0gt7/avJg6G3YFWaUM3WW2jo=
+		SoKEYeLK2wAsFFOP+5TKqasSJz0=
 		</data>
 		<key>Resources/vst3/DAWalka.vst3/Contents/MacOS/DAWalka Launcher.app/Contents/_CodeSignature/CodeRequirements</key>
 		<data>
@@ -282,7 +282,7 @@
 		</data>
 		<key>Resources/vst3/DAWalka.vst3/Contents/_CodeSignature/CodeResources</key>
 		<data>
-		7/jSIf6JqLXIHNhzADMIKkQwu2o=
+		ELqQdvY2vwFRYmPRiSZSLmcXPwQ=
 		</data>
 	</dict>
 	<key>files2</key>
@@ -326,7 +326,7 @@
 		<dict>
 			<key>hash2</key>
 			<data>
-			SqFp1blKEsME+DozgMMp4sy7awNvNHJskeBEORuyfjQ=
+			fl4Afj4Morznb79EecYP+4TS1eGFnWGjt/yG+ke1m7c=
 			</data>
 		</dict>
 		<key>Resources/component/DAWalka.component/Contents/MacOS/DAWalka Launcher.app/Contents/Info.plist</key>
@@ -340,14 +340,14 @@
 		<dict>
 			<key>hash2</key>
 			<data>
-			QehL/EzutzrJcDwVPOvfAEvA2p2rljwcvS7uNBeiuAQ=
+			Kv+r21YIxKfx2hRjOv7ouZI+3aBBTCfZgbaOGnrAogo=
 			</data>
 		</dict>
 		<key>Resources/component/DAWalka.component/Contents/MacOS/DAWalka Launcher.app/Contents/_CodeSignature/CodeDirectory</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			d1LTMNIQrzvRPbBttYCD5QnA2E2TkVy/n9XjJsXUTOo=
+			kTZAgxhrL40hLg2Fq1VcDRXzknl/Bnp1oCsVt3jdmoo=
 			</data>
 		</dict>
 		<key>Resources/component/DAWalka.component/Contents/MacOS/DAWalka Launcher.app/Contents/_CodeSignature/CodeRequirements</key>
@@ -522,7 +522,7 @@
 		<dict>
 			<key>hash2</key>
 			<data>
-			1//4Vis/iY6Q2TqzInLte4hn1i5Aa3K872//QraeiTw=
+			U8HBE5WCnsu8h5+9S5TNYKC3ABn83TKYbmMXsHEya+g=
 			</data>
 		</dict>
 		<key>Resources/python_backend/README.md</key>
@@ -571,7 +571,7 @@
 		<dict>
 			<key>hash2</key>
 			<data>
-			tRiONtnor5dcmZod8DiKo5yO4XqptontxRhj0Pnnqro=
+			tf8nXXOmcxGhh+KYRHLj4GVJphQG5sWF279xv8EWnO8=
 			</data>
 		</dict>
 		<key>Resources/vst3/DAWalka.vst3/Contents/MacOS/DAWalka Launcher.app/Contents/Info.plist</key>
@@ -585,14 +585,14 @@
 		<dict>
 			<key>hash2</key>
 			<data>
-			QehL/EzutzrJcDwVPOvfAEvA2p2rljwcvS7uNBeiuAQ=
+			Kv+r21YIxKfx2hRjOv7ouZI+3aBBTCfZgbaOGnrAogo=
 			</data>
 		</dict>
 		<key>Resources/vst3/DAWalka.vst3/Contents/MacOS/DAWalka Launcher.app/Contents/_CodeSignature/CodeDirectory</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			d1LTMNIQrzvRPbBttYCD5QnA2E2TkVy/n9XjJsXUTOo=
+			kTZAgxhrL40hLg2Fq1VcDRXzknl/Bnp1oCsVt3jdmoo=
 			</data>
 		</dict>
 		<key>Resources/vst3/DAWalka.vst3/Contents/MacOS/DAWalka Launcher.app/Contents/_CodeSignature/CodeRequirements</key>
@@ -774,7 +774,7 @@
 		<dict>
 			<key>hash2</key>
 			<data>
-			3uGoNKXczamSSoj3uBjjKEh0Dq8jK2EgGjQT1YYKopo=
+			f39aCBMIZ8h8XP0IFNAt+/ZqytBVFXFQCjnnsgeRimc=
 			</data>
 		</dict>
 	</dict>

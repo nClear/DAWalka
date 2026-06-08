@@ -147,6 +147,12 @@ def main():
 
     server_py = py_backend / "server.py"
     log(f"starting server.py on 127.0.0.1:{PORT} (venv={VENV})")
+    env = os.environ.copy()
+    # The backend runs from inside the signed plug-in bundle.  Python's
+    # default bytecode cache would create __pycache__/*.pyc files there,
+    # invalidating the bundle signature and making stricter hosts such as
+    # Ableton hide the VST3 during scanning.
+    env["PYTHONDONTWRITEBYTECODE"] = "1"
     # Force the server to run as native arm64.  When the launcher is
     # invoked from a sandboxed AU host via NSWorkspace, the inherited
     # arch can be x86_64 (Rosetta) — which then makes aiohttp/numpy/mlx
@@ -156,7 +162,7 @@ def main():
     arch_bin = "/usr/bin/arch"
     logFile_fh = open(LOG_FILE, "a")
     proc = subprocess.Popen(
-        [arch_bin, "-arm64", str(py), str(server_py),
+        [arch_bin, "-arm64", str(py), "-B", str(server_py),
          "--port", str(PORT),
          "--host", "127.0.0.1",
          "--models", str(MODELS_DIR),
@@ -166,6 +172,7 @@ def main():
         stderr=subprocess.STDOUT,
         stdin=subprocess.DEVNULL,
         cwd=py_backend,
+        env=env,
         start_new_session=True,   # fully detach from this process
     )
     log(f"server launched (pid {proc.pid})")
