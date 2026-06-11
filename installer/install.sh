@@ -91,7 +91,7 @@ run_quiet() {
     if ! "$@" >"$log" 2>&1; then
         printf "\n${RED}--- command failed: $* ---${RESET}\n" >&2
         tail -40 "$log" >&2
-        printf "${RED}------------------------------${RESET}\n\n" >&2
+        printf "%s\n\n" "${RED}------------------------------${RESET}" >&2
         rm -f "$log"
         return 1
     fi
@@ -307,11 +307,23 @@ ok "Free: ${FREE_GB} GB"
 # ─── 2. Python venv + deps ─────────────────────────────────────────────────
 step "2/5  Creating Python venv"
 mkdir -p "$(dirname "$VENV_DIR")"
-if [[ ! -d "$VENV_DIR" ]]; then
-    if ! python3 -m venv "$VENV_DIR"; then
-        fail "Failed to create venv.  Check that python3 works."
+
+if [[ -d "$VENV_DIR" ]]; then
+    VENV_PY="$VENV_DIR/bin/python3"
+    VENV_VERSION="$("$VENV_PY" -c 'import sys;print("%d.%d"%sys.version_info[:2])' 2>/dev/null || echo "unknown")"
+    if [[ ! -x "$VENV_PY" ]] || ! ver_at_least_310 "$VENV_PY"; then
+        warn "Existing venv uses Python $VENV_VERSION; recreating with Python $PY_VERSION"
+        if ! rm -rf "$VENV_DIR"; then
+            fail "Failed to remove incompatible venv: $VENV_DIR"
+        fi
     fi
-    ok "venv created"
+fi
+
+if [[ ! -d "$VENV_DIR" ]]; then
+    if ! "$PYTHON" -m venv "$VENV_DIR"; then
+        fail "Failed to create venv.  Check that $PYTHON works."
+    fi
+    ok "venv created with Python $PY_VERSION"
 else
     ok "venv already exists"
 fi

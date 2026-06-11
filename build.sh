@@ -109,7 +109,7 @@ run_quiet() {
     if ! "$@" >"$log" 2>&1; then
         printf "\n${RED}─── command failed: $* ───${RESET}\n" >&2
         tail -40 "$log" >&2
-        printf "${RED}───────────────────────────${RESET}\n\n" >&2
+        printf "%s\n\n" "${RED}───────────────────────────${RESET}" >&2
         rm -f "$log"
         return 1
     fi
@@ -411,11 +411,23 @@ ok "Python $PY_VERSION — $PYTHON"
 # ─── 2. Python venv ────────────────────────────────────────────────────────
 step "2/8  Создаю Python venv в $VENV_DIR"
 mkdir -p "$(dirname "$VENV_DIR")"
+
+if [[ -d "$VENV_DIR" ]]; then
+    VENV_PY="$VENV_DIR/bin/python3"
+    VENV_VERSION="$("$VENV_PY" -c 'import sys;print("%d.%d"%sys.version_info[:2])' 2>/dev/null || echo "unknown")"
+    if [[ ! -x "$VENV_PY" ]] || ! ver_at_least_310 "$VENV_PY"; then
+        warn "Существующий venv создан на Python $VENV_VERSION — пересоздаю через Python $PY_VERSION"
+        if ! rm -rf "$VENV_DIR"; then
+            fail "Не удалось удалить несовместимый venv: $VENV_DIR"
+        fi
+    fi
+fi
+
 if [[ ! -d "$VENV_DIR" ]]; then
     if ! "$PYTHON" -m venv "$VENV_DIR"; then
         fail "Не удалось создать venv.  Проверьте, что $PYTHON работает корректно"
     fi
-    ok "venv создан"
+    ok "venv создан через Python $PY_VERSION"
 else
     ok "venv уже существует"
 fi
